@@ -2,7 +2,25 @@
 
 Question answering over public healthcare coverage policies that cites the exact passage behind each claim, and says "not supported" when it can't.
 
-> **Status:** early. I'm at the design stage and there is no released code yet. The results table below stays empty until a script in this repo produces the numbers.
+> **Status:** early. The project skeleton, checks and container are in place; nothing answers a coverage question yet. The results table below stays empty until a script in this repo produces the numbers.
+
+## Running it
+
+You need [uv](https://docs.astral.sh/uv/). It installs the pinned Python for you.
+
+```bash
+uv sync --all-groups
+uv run python tools/check.py        # format, lint, floor scan, types, tests + coverage
+uv run python tools/verify_gates.py # plants a fault per gate and requires each to fail
+uv run uvicorn policylens.api.app:create_app --factory   # then open http://127.0.0.1:8000/healthz
+```
+
+Or the container, the same one CI builds and smoke-tests:
+
+```bash
+docker build -t policylens .
+docker run --rm -p 8000:8000 policylens
+```
 
 ## The problem
 
