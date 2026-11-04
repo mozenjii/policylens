@@ -54,6 +54,11 @@ GATES: tuple[Gate, ...] = (
         command=("ruff", "check", "."),
     ),
     Gate(
+        name="floor",
+        why="a silenced check, a skipped test or a pasted key is the bar lowered unannounced",
+        command=(sys.executable, "tools/floor.py"),
+    ),
+    Gate(
         name="types",
         why="strict types catch the wrong-shape value before a test has to",
         command=("pyright",),
