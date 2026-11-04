@@ -1,0 +1,8 @@
+# An allowlist: the build context is only what the image needs. Anything new in the
+# repository stays out of the image until it is added here on purpose.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+**/__pycache__
