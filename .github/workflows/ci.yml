@@ -1,0 +1,127 @@
+# What this runs, and what it doesn't.
+#
+# `check` runs tools/check.py, the same command I run before committing: format, lint, the
+# floor scan, strict types, and tests with an 80% coverage floor. Nothing is CI-only and
+# nothing local is missing here.
+#
+# Not gated yet, so the absence is a decision rather than an oversight:
+#   - Anything that needs the CMS download. No ingest exists yet; when it does, CI will
+#     build from a recorded snapshot and never publish the data.
+#   - Anything that calls a model. When a provider exists, CI replays recorded calls.
+#   - Accessibility and browser tests. There are no pages yet.
+#   - Deployment. The image is built and smoke-tested here but not pushed anywhere.
+
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.6"
+          enable-cache: true
+
+      - name: Install the locked environment
+        # --locked fails instead of quietly resolving something new.
+        run: uv sync --all-groups --locked
+
+      - name: Run the gates
+        run: uv run python tools/check.py
+
+  # A gate that has never failed isn't known to work. This plants a fault per gate and
+  # requires each one to catch it, then requires the tree to be green again.
+  gates-are-connected:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.6"
+          enable-cache: true
+
+      - name: Install the locked environment
+        run: uv sync --all-groups --locked
+
+      - name: Make every gate fail on purpose
+        run: uv run python tools/verify_gates.py
+
+  # Kept out of `check` because it queries a remote advisory database, and a gate that
+  # needs the network fails for reasons that have nothing to do with the change.
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.6"
+          enable-cache: true
+
+      - name: Install the locked environment
+        run: uv sync --all-groups --locked
+
+      # Audit exactly what is pinned, not whatever happens to be installed. The project
+      # itself is left out: it isn't published, so there is no advisory feed for it.
+      - name: Export the locked dependencies
+        run: >
+          uv export --no-emit-project --all-groups --no-hashes
+          --format requirements-txt -o requirements-audit.txt
+
+      - name: Audit dependencies for known vulnerabilities
+        run: uv run pip-audit --strict --no-deps -r requirements-audit.txt
+
+  # The image a host will run: build it, start it, and require /healthz to answer from a
+  # non-root process. A Dockerfile that only ever gets built at deploy time breaks at
+  # deploy time.
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the image
+        run: docker build --tag policylens:ci .
+
+      - name: Start it on a port the host chooses
+        run: docker run --detach --name policylens --env PORT=9000 --publish 9000:9000 policylens:ci
+
+      - name: Require the health endpoint to answer
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:9000/healthz; then
+              echo
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs policylens
+          exit 1
+
+      - name: Require it to run as an unprivileged user
+        run: test "$(docker exec policylens id -u)" = "10001"
+
+      - name: Require the dev tools to be absent
+        run: "! docker exec policylens python -c 'import pytest'"
