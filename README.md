@@ -2,7 +2,7 @@
 
 Question answering over public healthcare coverage policies that cites the exact passage behind each claim, and says "not supported" when it can't.
 
-> **Status:** early. The project skeleton, checks and container are in place; nothing answers a coverage question yet. The results table below stays empty until a script in this repo produces the numbers.
+> **Status:** early. It can load Medicare's National Coverage Determinations into a checked, read-only database; nothing answers a coverage question yet. The results table below stays empty until a script in this repo produces the numbers.
 
 ## Running it
 
@@ -21,6 +21,17 @@ Or the container, the same one CI builds and smoke-tests:
 docker build -t policylens .
 docker run --rm -p 8000:8000 policylens
 ```
+
+## Loading the data
+
+The policy text comes from CMS's [Medicare Coverage Database downloads](https://www.cms.gov/medicare-coverage-database/downloads/downloads.aspx), which are covered by AMA, ADA and AHA licence terms. None of it is in this repository. Read the terms first; the download script won't run until you say you have:
+
+```bash
+uv run python tools/fetch_mcd.py ncd --accept-licence
+uv run policylens ingest-ncd data/raw/ncd-<date>/ncd.zip
+```
+
+The ingest checks every table against CMS's data dictionary, reports any row it had to drop or flag, and refuses to replace the database if rows were dropped. Every stored column has been reviewed for licensed content, and the build fails if one hasn't.
 
 ## The problem
 
