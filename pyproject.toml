@@ -18,6 +18,9 @@ dependencies = [
   "uvicorn>=0.32,<1",
 ]
 
+[project.scripts]
+policylens = "policylens.cli:main"
+
 [project.urls]
 Source = "https://github.com/mozenjii/policylens"
 
