@@ -83,6 +83,9 @@ ignore = [
 "tests/**" = ["D100", "D103", "S101"]
 # The tools print to a terminal and shell out; that is their whole job.
 "tools/**" = ["T201", "S603"]
+# urlopen is flagged because a user-supplied URL could be file:// or similar. Here every
+# URL is a constant on the CMS host, and open_url refuses anything else.
+"tools/fetch_mcd.py" = ["T201", "S603", "S310"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
